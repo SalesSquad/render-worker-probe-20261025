@@ -1,0 +1,19 @@
+name: Hosted runner probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Confirm hosted Linux runner
+        run: |
+          set -euo pipefail
+          uname -a
+          nproc
+          echo CLOUD_RUNNER_READY
