@@ -34,9 +34,7 @@ jobs:
             -pass env:PAYLOAD_KEY
           mkdir private
           tar -xzf lieri-payload.tar.gz -C private
-          echo "d9507b65a2d59c4595b03529e95f2813700874902a6802b07acb98207e650c90  private/Lieri-3D-cloud-handoff-2026-10-25.zip" | sha256sum --check -
-          mkdir work
-          unzip -q private/Lieri-3D-cloud-handoff-2026-10-25.zip -d work
+          mv private/work work
 
       - name: Download verified Blender 5.2.0
         shell: bash
@@ -57,6 +55,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf work/rig_frames-cloud
+          ./blender/blender --background --factory-startup --threads 4 \
+            --python work/rig/build_master.py -- --no-render
           ./blender/blender --background work/rig/lieri.blend --threads 4 \
             --python work/rig_animation/render_all.py -- \
             --output work/rig_frames-cloud --samples "${{ inputs.samples }}"
@@ -74,6 +74,9 @@ jobs:
             --compose-script private/compose_atlas.py \
             --charcoal-rim
           python3 work/rig_delivery_tools/package_demo.py --root work/rig-output --package
+          cp work/delivery/recolor.py work/rig-output/
+          cp work/delivery/requirements.txt work/rig-output/
+          cp private/README-delivery.md work/rig-output/README.md
           python3 -m unittest discover -s work/rig_delivery_tools -p 'test_*.py' -v
 
       - name: Package and encrypt result
@@ -81,10 +84,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir cloud-result
-          cp -R work/rig-output cloud-result/
+          # Export one bundle; avoid embedding duplicate per-pet archives.
+          python3 -m zipfile -c cloud-result/Lieri-round2-review.zip work/rig-output
           cp work/rig_frames-cloud/render-manifest.json cloud-result/
           cp work/rig/lieri.blend cloud-result/
-          find cloud-result -type f -print0 | sort -z | xargs -0 sha256sum > cloud-result/SHA256SUMS.txt
+          find cloud-result -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > cloud-result/SHA256SUMS.txt
           tar -czf lieri-cloud-result.tar.gz cloud-result
           openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
             -in lieri-cloud-result.tar.gz -out lieri-cloud-result.tar.gz.enc \
