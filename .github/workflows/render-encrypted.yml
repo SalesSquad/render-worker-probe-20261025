@@ -84,8 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir cloud-result
-          # Export one bundle; avoid embedding duplicate per-pet archives.
-          python3 -m zipfile -c cloud-result/Lieri-round2-review.zip work/rig-output
+          python3 -c "from pathlib import Path; import zipfile; root=Path('work/rig-output'); z=zipfile.ZipFile('cloud-result/Lieri-round3-review.zip','w',zipfile.ZIP_DEFLATED); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file() and p.suffix!='.zip']; z.close()"
           cp work/rig_frames-cloud/render-manifest.json cloud-result/
           cp work/rig/lieri.blend cloud-result/
           find cloud-result -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > cloud-result/SHA256SUMS.txt
