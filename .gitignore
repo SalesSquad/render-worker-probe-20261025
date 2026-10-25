@@ -2,3 +2,8 @@
 lieri-cloud-result/
 lieri-cloud-result.tar.gz
 lieri-cloud-result.tar.gz.enc
+__pycache__/
+retrieval-*.log
+README-delivery.md
+prepare_round2.py
+retrieve.py
