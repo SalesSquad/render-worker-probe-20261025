@@ -41,6 +41,7 @@ jobs:
           mv private/work work
 
       - name: Download verified Blender 5.2.0
+        if: ${{ inputs.stage != 'export' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -59,6 +60,12 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf work/rig_frames-cloud
+          if [ "${{ inputs.stage }}" = export ]; then
+            mkdir work/rig_frames-cloud
+            python3 -m pip install --disable-pip-version-check -r work/delivery/requirements.txt
+            python3 work/rig_delivery_tools/merge_render_rows.py private/reuse work/rig_frames-cloud --all
+            exit 0
+          fi
           ./blender/blender --background --factory-startup --threads 4 \
             --python work/rig/build_master.py -- --no-render
           if [ "${{ inputs.stage }}" = neutral ]; then
