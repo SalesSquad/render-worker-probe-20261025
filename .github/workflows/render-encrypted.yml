@@ -66,9 +66,16 @@ jobs:
               --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --states idle --limit 1 --samples "${{ inputs.samples }}"
             exit 0
           fi
+          if [ "${{ inputs.stage }}" = repair ]; then
+            ./blender/blender --background work/rig/lieri.blend --threads 4 \
+              --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --states running-right,running-left,waving,jumping,failed,waiting,running,review --samples "${{ inputs.samples }}"
+            python3 -m pip install --disable-pip-version-check -r work/delivery/requirements.txt
+            python3 work/rig_delivery_tools/merge_render_rows.py private/reuse work/rig_frames-cloud
+          else
           ./blender/blender --background work/rig/lieri.blend --threads 4 \
             --python work/rig_animation/render_all.py -- \
             --output work/rig_frames-cloud --samples "${{ inputs.samples }}"
+          fi
           test "$(find work/rig_frames-cloud -name '*.png' | wc -l)" -eq 146
           test -f work/rig_frames-cloud/render-manifest.json
 
