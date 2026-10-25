@@ -1,4 +1,6 @@
-# Hosted render worker probe
+# Encrypted hosted render worker
 
-Minimal public-runner capability check. No Lieri source, reference images, or
-rendered assets are stored in this repository.
+Public GitHub-hosted runner shell with encrypted inputs and outputs. No Lieri
+source, reference image, rendered frame, or decryption key is public. The
+workflow is manually dispatched, decrypts only inside an ephemeral Ubuntu
+runner, and uploads only an AES-256-encrypted result.

@@ -1,0 +1,99 @@
+name: Encrypted Blender render
+
+on:
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: Cycles samples per beauty frame
+        required: true
+        default: "64"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: encrypted-lieri-render
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PAYLOAD_KEY: ${{ secrets.LIERI_PAYLOAD_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decrypt private payload in ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PAYLOAD_KEY"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in lieri-payload.tar.gz.enc -out lieri-payload.tar.gz \
+            -pass env:PAYLOAD_KEY
+          mkdir private
+          tar -xzf lieri-payload.tar.gz -C private
+          echo "d9507b65a2d59c4595b03529e95f2813700874902a6802b07acb98207e650c90  private/Lieri-3D-cloud-handoff-2026-10-25.zip" | sha256sum --check -
+          mkdir work
+          unzip -q private/Lieri-3D-cloud-handoff-2026-10-25.zip -d work
+
+      - name: Download verified Blender 5.2.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=https://download.blender.org/release/Blender5.2
+          curl --fail --location --retry 3 --output blender.tar.xz "$base/blender-5.2.0-linux-x64.tar.xz"
+          curl --fail --location --retry 3 --output blender.sha256 "$base/blender-5.2.0.sha256"
+          expected=$(awk '$2 ~ /blender-5.2.0-linux-x64.tar.xz$/ {print $1}' blender.sha256)
+          test -n "$expected"
+          echo "$expected  blender.tar.xz" | sha256sum --check -
+          mkdir blender
+          tar -xf blender.tar.xz --strip-components=1 -C blender
+          ./blender/blender --version
+
+      - name: Render all 73 registered frames in cloud
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work/rig_frames-cloud
+          ./blender/blender --background work/rig/lieri.blend --threads 4 \
+            --python work/rig_animation/render_all.py -- \
+            --output work/rig_frames-cloud --samples "${{ inputs.samples }}"
+          test "$(find work/rig_frames-cloud -name '*.png' | wc -l)" -eq 146
+          test -f work/rig_frames-cloud/render-manifest.json
+
+      - name: Assemble four colorways and verification assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r work/delivery/requirements.txt
+          python3 work/rig_recolor/assemble_recolor.py \
+            --manifest work/rig_frames-cloud/render-manifest.json \
+            --output work/rig-output \
+            --compose-script private/compose_atlas.py \
+            --charcoal-rim
+          python3 work/rig_delivery_tools/package_demo.py --root work/rig-output --package
+          python3 -m unittest discover -s work/rig_delivery_tools -p 'test_*.py' -v
+
+      - name: Package and encrypt result
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir cloud-result
+          cp -R work/rig-output cloud-result/
+          cp work/rig_frames-cloud/render-manifest.json cloud-result/
+          cp work/rig/lieri.blend cloud-result/
+          find cloud-result -type f -print0 | sort -z | xargs -0 sha256sum > cloud-result/SHA256SUMS.txt
+          tar -czf lieri-cloud-result.tar.gz cloud-result
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+            -in lieri-cloud-result.tar.gz -out lieri-cloud-result.tar.gz.enc \
+            -pass env:PAYLOAD_KEY
+
+      - name: Upload encrypted result only
+        uses: actions/upload-artifact@v4
+        with:
+          name: lieri-cloud-result-encrypted
+          path: lieri-cloud-result.tar.gz.enc
+          if-no-files-found: error
+          retention-days: 3
