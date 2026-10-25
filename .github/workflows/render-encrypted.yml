@@ -87,6 +87,7 @@ jobs:
             --compose-script private/compose_atlas.py \
             --charcoal-rim
           python3 work/rig_delivery_tools/package_demo.py --root work/rig-output --package
+          python3 -m pip install --disable-pip-version-check playwright
           python3 work/rig_delivery_tools/browser_qa.py work/rig-output
           cp work/delivery/recolor.py work/rig-output/
           cp work/delivery/requirements.txt work/rig-output/
