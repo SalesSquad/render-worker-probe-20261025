@@ -99,7 +99,7 @@ jobs:
             --manifest work/rig_frames-cloud/render-manifest.json \
             --output work/rig-output \
             --compose-script private/compose_atlas.py \
-            --charcoal-rim
+            --charcoal-rim --calibrate-reference
           python3 work/rig_delivery_tools/package_demo.py --root work/rig-output --package
           python3 -m pip install --disable-pip-version-check playwright
           python3 work/rig_delivery_tools/browser_qa.py work/rig-output
