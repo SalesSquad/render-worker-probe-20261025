@@ -73,6 +73,13 @@ jobs:
               --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --states idle --limit 1 --samples "${{ inputs.samples }}"
             exit 0
           fi
+          if [ "${{ inputs.stage }}" = ids ]; then
+            ./blender/blender --background work/rig/lieri.blend --threads 4 \
+              --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --ids-only --samples "${{ inputs.samples }}"
+            python3 -m pip install --disable-pip-version-check -r work/delivery/requirements.txt
+            python3 work/rig_delivery_tools/restore_beauty.py private/reuse work/rig_frames-cloud
+            exit 0
+          fi
           if [ "${{ inputs.stage }}" = repair ]; then
             ./blender/blender --background work/rig/lieri.blend --threads 4 \
               --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --states running-right,running-left,waving,jumping,failed,waiting,running,review --samples "${{ inputs.samples }}"
