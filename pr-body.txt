@@ -1,0 +1,7 @@
+Rebuild the Blender scene from encrypted source before exporting registered
+frames. Correct the checksum manifest to exclude itself, and avoid duplicate
+archives in the final encrypted artifact.
+
+The latest branch workflow completed successfully in run 40208742419, including
+rendering, export verification, tests and artifact upload. Artistic acceptance
+is a separate review and has not been granted.

@@ -1,0 +1,7 @@
+Render Lieri's shared Blender animation in GitHub Actions and derive palette variants from deterministic material masks, fractional body/band coverage and 16-bit linear shading. Payloads and results are encrypted; Blender is downloaded from its official distribution and checked against its published checksum.
+
+The final source/payload is 7f96e0b. Run 40218325815 completed successfully with 25 tests, four exact recolor reproductions, identical alpha across all palettes, and Chrome playback/size/reduced-motion checks. All four final spritesheets also passed the Pets service preflight. Final delivery packages include the Blender scene, source, proof images, layers, recolor CLI and standalone demo.
+
+The independent visual review accepted the corrected export with minor reservations. It did not certify the requested universal 9/10 art target: charcoal contrast at half size, rounded foot bottoms and similar idle/wait/review pose language remain. Motion scores are provisional rather than a continuous human playback review. The optional nine-state web bonus sheet and actual client installation were not completed. Full before/after scores and limitations accompany the delivery.
+
+No deployment or merge requested. Keep this PR as a reviewable draft.
