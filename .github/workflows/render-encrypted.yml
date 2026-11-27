@@ -3,6 +3,10 @@ name: Encrypted Blender render
 on:
   workflow_dispatch:
     inputs:
+      stage:
+        description: neutral or full
+        required: true
+        default: full
       samples:
         description: Cycles samples per beauty frame
         required: true
@@ -34,11 +38,10 @@ jobs:
             -pass env:PAYLOAD_KEY
           mkdir private
           tar -xzf lieri-payload.tar.gz -C private
-          echo "d9507b65a2d59c4595b03529e95f2813700874902a6802b07acb98207e650c90  private/Lieri-3D-cloud-handoff-2026-10-25.zip" | sha256sum --check -
-          mkdir work
-          unzip -q private/Lieri-3D-cloud-handoff-2026-10-25.zip -d work
+          mv private/work work
 
       - name: Download verified Blender 5.2.0
+        if: ${{ inputs.stage != 'export' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -57,9 +60,35 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf work/rig_frames-cloud
+          if [ "${{ inputs.stage }}" = export ]; then
+            mkdir work/rig_frames-cloud
+            cp private/reuse/manifest.json work/rig_frames-cloud/render-manifest.json
+            exit 0
+          fi
+          ./blender/blender --background --factory-startup --threads 4 \
+            --python work/rig/build_master.py -- --no-render
+          if [ "${{ inputs.stage }}" = neutral ]; then
+            ./blender/blender --background work/rig/lieri.blend --threads 4 \
+              --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --states idle --limit 1 --samples "${{ inputs.samples }}"
+            exit 0
+          fi
+          if [ "${{ inputs.stage }}" = ids ]; then
+            ./blender/blender --background work/rig/lieri.blend --threads 4 \
+              --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --ids-only --samples "${{ inputs.samples }}"
+            python3 -m pip install --disable-pip-version-check -r work/delivery/requirements.txt
+            python3 work/rig_delivery_tools/restore_beauty.py private/reuse work/rig_frames-cloud
+            exit 0
+          fi
+          if [ "${{ inputs.stage }}" = repair ]; then
+            ./blender/blender --background work/rig/lieri.blend --threads 4 \
+              --python work/rig_animation/render_all.py -- --output work/rig_frames-cloud --states running-right,running-left,waving,jumping,failed,waiting,running,review --samples "${{ inputs.samples }}"
+            python3 -m pip install --disable-pip-version-check -r work/delivery/requirements.txt
+            python3 work/rig_delivery_tools/merge_render_rows.py private/reuse work/rig_frames-cloud
+          else
           ./blender/blender --background work/rig/lieri.blend --threads 4 \
             --python work/rig_animation/render_all.py -- \
             --output work/rig_frames-cloud --samples "${{ inputs.samples }}"
+          fi
           test "$(find work/rig_frames-cloud -name '*.png' | wc -l)" -eq 146
           test -f work/rig_frames-cloud/render-manifest.json
 
@@ -68,23 +97,36 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check -r work/delivery/requirements.txt
-          python3 work/rig_recolor/assemble_recolor.py \
+          if [ "${{ inputs.stage }}" = neutral ]; then
+            python3 work/rig_delivery_tools/neutral_review.py work/rig_frames-cloud work/rig-output
+            exit 0
+          fi
+          extra=()
+          if [ "${{ inputs.stage }}" = export ]; then extra=(--frozen-master private/reuse); fi
+          python3 work/rig_recolor/assemble_recolor.py "${extra[@]}" \
             --manifest work/rig_frames-cloud/render-manifest.json \
             --output work/rig-output \
             --compose-script private/compose_atlas.py \
-            --charcoal-rim
+            --charcoal-rim --calibrate-reference
           python3 work/rig_delivery_tools/package_demo.py --root work/rig-output --package
+          python3 -m pip install --disable-pip-version-check playwright
+          python3 work/rig_delivery_tools/browser_qa.py work/rig-output
+          cp work/delivery/recolor.py work/rig-output/
+          cp work/delivery/requirements.txt work/rig-output/
+          cp private/README-delivery.md work/rig-output/README.md
           python3 -m unittest discover -s work/rig_delivery_tools -p 'test_*.py' -v
+          python3 -m unittest discover -s work/delivery/tests -p 'test_*.py' -v
+          python3 -m unittest discover -s work/rig_recolor -p 'test_*.py' -v
 
       - name: Package and encrypt result
         shell: bash
         run: |
           set -euo pipefail
           mkdir cloud-result
-          cp -R work/rig-output cloud-result/
-          cp work/rig_frames-cloud/render-manifest.json cloud-result/
+          python3 -c "from pathlib import Path; import zipfile; root=Path('work/rig-output'); z=zipfile.ZipFile('cloud-result/Lieri-round3-review.zip','w',zipfile.ZIP_DEFLATED); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file() and p.suffix!='.zip']; z.close()"
+          cp work/rig_frames-cloud/render-manifest*.json cloud-result/
           cp work/rig/lieri.blend cloud-result/
-          find cloud-result -type f -print0 | sort -z | xargs -0 sha256sum > cloud-result/SHA256SUMS.txt
+          find cloud-result -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > cloud-result/SHA256SUMS.txt
           tar -czf lieri-cloud-result.tar.gz cloud-result
           openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
             -in lieri-cloud-result.tar.gz -out lieri-cloud-result.tar.gz.enc \
